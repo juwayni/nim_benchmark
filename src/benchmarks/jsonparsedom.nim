@@ -19,24 +19,24 @@ method prepare(self: JsonParseDom) =
   self.resultVal = 0
 
 method run(self: JsonParseDom, iteration_id: int) =
+  # Revert to DOM parsing as requested (don't change logic),
+  # but use std/json with minimal overhead where possible.
   let parsed = parseJson(self.text)
 
   var xSum, ySum, zSum: float
-  var len = 0
-
   let coordinates = parsed["coordinates"]
+  let len = coordinates.len
 
   for coordNode in coordinates:
     xSum += coordNode["x"].getFloat()
     ySum += coordNode["y"].getFloat()
     zSum += coordNode["z"].getFloat()
-    inc len
 
   if len > 0:
-    let x = xSum / float(len)
-    let y = ySum / float(len)
-    let z = zSum / float(len)
-
+    let flen = float(len)
+    let x = xSum / flen
+    let y = ySum / flen
+    let z = zSum / flen
     self.resultVal = self.resultVal + checksumF64(x) + checksumF64(y) +
         checksumF64(z)
 

@@ -1,4 +1,4 @@
-import std/[json, times, math, tables, strutils, os]
+import std/[json, times, monotimes, math, tables, strutils, os]
 import config, helper
 
 type
@@ -28,7 +28,7 @@ method expected_checksum*(self: Benchmark): int64 {.base.} =
 
 method warmup_iterations*(self: Benchmark): int64 {.base.} =
   if CONFIG.hasKey(self.name) and CONFIG{self.name}.hasKey("warmup_iterations"):
-    return CONFIG{self.name}{"warmup_iterations"}.getInt()
+    return CONFIG{self.name}{"warmup_iterations"}.getBiggestInt()
   else:
     let iters = self.iterations
     return max(int64(float(iters) * 0.2), 1'i64)
@@ -45,22 +45,6 @@ proc run_all*(self: Benchmark) =
 
 proc set_time_delta*(self: Benchmark, delta: float) =
   self.timeDelta = delta
-
-proc customRound*(value: float, precision: int32): float =
-  if classify(value) in {fcNan, fcInf, fcNegInf}:
-    return value
-
-  let factor = pow(10.0, float(precision))
-  let scaled = value * factor
-
-  let fraction = scaled - floor(scaled)
-
-  if abs(fraction) < 0.5:
-    result = floor(scaled) / factor
-  elif abs(fraction) > 0.5:
-    result = ceil(scaled) / factor
-  else:
-    result = (round(scaled / 2.0) * 2.0) / factor
 
 proc toLower*(str: string): string =
   result = newString(str.len)
@@ -99,36 +83,27 @@ proc all*(singleBench = "") =
     GC_fullCollect()
     reset()
 
-    let start = epochTime()
+    let start = getMonoTime()
     bench.run_all
-    let duration = epochTime() - start
+    let duration = (getMonoTime() - start).inMicroseconds.float / 1000000.0
 
     bench.set_time_delta(duration)
     results[name] = duration
 
-    if bench.checksum == bench.expected_checksum.uint32:
+    let actual = bench.checksum
+    let expected = bench.expected_checksum.uint32
+    if actual == expected:
       stdout.write("OK ")
       inc ok
     else:
-      stdout.write("ERR[actual=", $bench.checksum, ", expected=",
-          $bench.expected_checksum, "] ")
+      stdout.write("ERR[actual=", $actual, ", expected=",
+          $expected, "] ")
       inc fails
 
     echo "in ", formatFloat(duration, ffDecimal, 3), "s"
     summaryTime += duration
 
     GC_fullCollect()
-
-  let resultsFile = open("/tmp/results.js", fmWrite)
-  resultsFile.write("{")
-  var first = true
-  for name, time in results.pairs:
-    if not first:
-      resultsFile.write(",")
-    resultsFile.write("\"", name, "\":", formatFloat(time, ffDecimal))
-    first = false
-  resultsFile.write("}")
-  resultsFile.close()
 
   if ok + fails > 0:
     echo "Summary: ", formatFloat(summaryTime, ffDecimal, 4), "s, ", ok+fails,
