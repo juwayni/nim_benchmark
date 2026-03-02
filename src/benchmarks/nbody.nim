@@ -26,29 +26,44 @@ proc newPlanet(x, y, z, vx, vy, vz, mass: float): Planet =
     mass: mass * SOLAR_MASS
   )
 
-proc moveFromI(bodies: var seq[Planet], dt: float, start: int) =
-  let b = bodies[start]
-  for i in start+1..<bodies.len:
-    let b2 = bodies[i]
-    let dx = b.x - b2.x
-    let dy = b.y - b2.y
-    let dz = b.z - b2.z
+proc advance(bodies: var seq[Planet], dt: float) =
+  let n = bodies.len
+  for i in 0..<n:
+    for j in i+1..<n:
+      let dx = bodies[i].x - bodies[j].x
+      let dy = bodies[i].y - bodies[j].y
+      let dz = bodies[i].z - bodies[j].z
 
-    let distance = sqrt(dx*dx + dy*dy + dz*dz)
-    let mag = dt / (distance * distance * distance)
-    let bMassMag = b.mass * mag
-    let b2MassMag = b2.mass * mag
+      let dSquared = dx*dx + dy*dy + dz*dz
+      let distance = sqrt(dSquared)
+      let mag = dt / (dSquared * distance)
 
-    bodies[start].vx -= dx * b2MassMag
-    bodies[start].vy -= dy * b2MassMag
-    bodies[start].vz -= dz * b2MassMag
-    bodies[i].vx += dx * bMassMag
-    bodies[i].vy += dy * bMassMag
-    bodies[i].vz += dz * bMassMag
+      bodies[i].vx -= dx * bodies[j].mass * mag
+      bodies[i].vy -= dy * bodies[j].mass * mag
+      bodies[i].vz -= dz * bodies[j].mass * mag
 
-  bodies[start].x += dt * bodies[start].vx
-  bodies[start].y += dt * bodies[start].vy
-  bodies[start].z += dt * bodies[start].vz
+      bodies[j].vx += dx * bodies[i].mass * mag
+      bodies[j].vy += dy * bodies[i].mass * mag
+      bodies[j].vz += dz * bodies[i].mass * mag
+
+  for i in 0..<n:
+    bodies[i].x += dt * bodies[i].vx
+    bodies[i].y += dt * bodies[i].vy
+    bodies[i].z += dt * bodies[i].vz
+
+proc energy(bodies: seq[Planet]): float =
+  result = 0.0
+  let n = bodies.len
+  for i in 0..<n:
+    let b = bodies[i]
+    result += 0.5 * b.mass * (b.vx*b.vx + b.vy*b.vy + b.vz*b.vz)
+    for j in i+1..<n:
+      let b2 = bodies[j]
+      let dx = b.x - b2.x
+      let dy = b.y - b2.y
+      let dz = b.z - b2.z
+      let distance = sqrt(dx*dx + dy*dy + dz*dz)
+      result -= (b.mass * b2.mass) / distance
 
 proc newNbody(): Benchmark =
   Nbody(resultVal: 0, v1: 0.0)
@@ -56,7 +71,6 @@ proc newNbody(): Benchmark =
 method name(self: Nbody): string = "CLBG::Nbody"
 
 method prepare(self: Nbody) =
-
   self.bodies = @[
     newPlanet(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0),
     newPlanet(4.84143144246472090e+00, -1.16032004402742839e+00, -1.03622044471123109e-01,
@@ -87,42 +101,14 @@ method prepare(self: Nbody) =
   self.bodies[0].vy = -py / SOLAR_MASS
   self.bodies[0].vz = -pz / SOLAR_MASS
 
-  var e = 0.0
-  let nbodies = self.bodies.len
-  for i in 0..<nbodies:
-    let b = self.bodies[i]
-    e += 0.5 * b.mass * (b.vx*b.vx + b.vy*b.vy + b.vz*b.vz)
-    for j in i+1..<nbodies:
-      let b2 = self.bodies[j]
-      let dx = b.x - b2.x
-      let dy = b.y - b2.y
-      let dz = b.z - b2.z
-      let distance = sqrt(dx*dx + dy*dy + dz*dz)
-      e -= (b.mass * b2.mass) / distance
-
-  self.v1 = e
+  self.v1 = energy(self.bodies)
 
 method run(self: Nbody, iteration_id: int) =
   for j in 0..<1000:
-    for i in 0..<self.bodies.len:
-      self.bodies.moveFromI(0.01, i)
+    self.bodies.advance(0.01)
 
 method checksum(self: Nbody): uint32 =
-
-  var e = 0.0
-  let nbodies = self.bodies.len
-  for i in 0..<nbodies:
-    let b = self.bodies[i]
-    e += 0.5 * b.mass * (b.vx*b.vx + b.vy*b.vy + b.vz*b.vz)
-    for j in i+1..<nbodies:
-      let b2 = self.bodies[j]
-      let dx = b.x - b2.x
-      let dy = b.y - b2.y
-      let dz = b.z - b2.z
-      let distance = sqrt(dx*dx + dy*dy + dz*dz)
-      e -= (b.mass * b2.mass) / distance
-
-  let v2 = e
+  let v2 = energy(self.bodies)
   let checksum1 = checksumF64(self.v1)
   let checksum2 = checksumF64(v2)
   (checksum1 shl 5) and checksum2

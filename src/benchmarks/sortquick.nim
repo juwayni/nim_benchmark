@@ -11,27 +11,25 @@ proc newSortQuick(): Benchmark =
 method name(self: SortQuick): string = "Sort::Quick"
 
 proc quickSort(arr: var seq[int32], low, high: int) =
-  if low >= high:
-    return
+  var stack: seq[tuple[l, h: int]] = @[(low, high)]
+  while stack.len > 0:
+    let (l, h) = stack.pop()
+    if l >= h: continue
 
-  let pivot = arr[(low + high) div 2]
-  var i = low
-  var j = high
+    let pivot = arr[l + (h - l) div 2]
+    var i = l
+    var j = h
+    while i <= j:
+      while arr[i] < pivot: inc i
+      while arr[j] > pivot: dec j
+      if i <= j:
+        let tmp = arr[i]
+        arr[i] = arr[j]
+        arr[j] = tmp
+        inc i; dec j
 
-  while i <= j:
-    while arr[i] < pivot:
-      inc i
-    while arr[j] > pivot:
-      dec j
-    if i <= j:
-      swap(arr[i], arr[j])
-      inc i
-      dec j
-
-  if j > low:
-    quickSort(arr, low, j)
-  if i < high:
-    quickSort(arr, i, high)
+    if l < j: stack.add((l, j))
+    if i < h: stack.add((i, h))
 
 method test(self: SortQuick): seq[int32] =
   var arr = self.data

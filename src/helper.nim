@@ -28,8 +28,8 @@ proc nextFloat*(max: float = 1.0): float =
 
 proc checksum*(v: string): uint32 =
   result = 5381'u32
-  for c in v:
-    result = ((result shl 5) + result) + uint32(c.uint8)
+  for i in 0..<v.len:
+    result = ((result shl 5) + result) + uint32(v[i].uint8)
 
 proc checksum*(v: openArray[byte]): uint32 =
   result = 5381'u32
@@ -40,23 +40,11 @@ proc checksumF64*(v: float): uint32 =
   result = checksum(formatFloat(v, ffDecimal, 7))
 
 proc config_i64*(class_name, field_name: string): int64 =
-  try:
-    if CONFIG.hasKey(class_name) and CONFIG{class_name}.hasKey(field_name):
-      return CONFIG{class_name}{field_name}.getInt()
-    else:
-      raise newException(ValueError, "Config not found for " & class_name &
-          ", field: " & field_name)
-  except:
-    stderr.writeLine(getCurrentExceptionMsg())
-    return 0
+  if CONFIG.hasKey(class_name) and CONFIG{class_name}.hasKey(field_name):
+    return CONFIG{class_name}{field_name}.getBiggestInt()
+  return 0
 
 proc config_s*(class_name, field_name: string): string =
-  try:
-    if CONFIG.hasKey(class_name) and CONFIG{class_name}.hasKey(field_name):
-      return CONFIG{class_name}{field_name}.getStr()
-    else:
-      raise newException(ValueError, "Config not found for " & class_name &
-          ", field: " & field_name)
-  except:
-    stderr.writeLine(getCurrentExceptionMsg())
-    return ""
+  if CONFIG.hasKey(class_name) and CONFIG{class_name}.hasKey(field_name):
+    return CONFIG{class_name}{field_name}.getStr()
+  return ""
